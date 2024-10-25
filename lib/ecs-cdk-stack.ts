@@ -26,7 +26,7 @@ export class EcsCdkStack extends Stack {
     );
 
     // 2. Create the ECS cluster
-    const vpc = new ec2.Vpc(this, 'MyVpc', {
+    const vpc = new ec2.Vpc(this, "MyVpc", {
       maxAzs: 3,
       natGateways: 1,
     });
@@ -36,41 +36,56 @@ export class EcsCdkStack extends Stack {
       allowAllOutbound: true,
     });
 
-
     // Add specific inbound rules as needed
-    taskSecurityGroup.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(80), 'Allow HTTP traffic');
-    taskSecurityGroup.addEgressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(443), 'Allow outbound HTTPS traffic');
-
+    taskSecurityGroup.addIngressRule(
+      ec2.Peer.anyIpv4(),
+      ec2.Port.tcp(80),
+      "Allow HTTP traffic"
+    );
+    taskSecurityGroup.addEgressRule(
+      ec2.Peer.anyIpv4(),
+      ec2.Port.tcp(443),
+      "Allow outbound HTTPS traffic"
+    );
 
     // Create an execution role for the Fargate task
     const executionRole = new iam.Role(this, "EcsTaskExecutionRole", {
       assumedBy: new iam.ServicePrincipal("ecs-tasks.amazonaws.com"),
     });
 
-    executionRole.addManagedPolicy(iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AmazonECSTaskExecutionRolePolicy'));
-    executionRole.addManagedPolicy(iam.ManagedPolicy.fromAwsManagedPolicyName('AmazonEC2ContainerRegistryReadOnly'));
+    executionRole.addManagedPolicy(
+      iam.ManagedPolicy.fromAwsManagedPolicyName(
+        "service-role/AmazonECSTaskExecutionRolePolicy"
+      )
+    );
+    executionRole.addManagedPolicy(
+      iam.ManagedPolicy.fromAwsManagedPolicyName(
+        "AmazonEC2ContainerRegistryReadOnly"
+      )
+    );
 
-    executionRole.addToPolicy(new iam.PolicyStatement({
-      actions: [
-        'ecr:GetAuthorizationToken',
-        'ecr:BatchCheckLayerAvailability',
-        'ecr:GetDownloadUrlForLayer',
-        'ecr:BatchGetImage',
-        'logs:CreateLogStream',
-        'logs:PutLogEvents',
-        'logs:CreateLogGroup',
-      ],
-      resources: ['*'], // Scope down if possible
-    }));
+    executionRole.addToPolicy(
+      new iam.PolicyStatement({
+        actions: [
+          "ecr:GetAuthorizationToken",
+          "ecr:BatchCheckLayerAvailability",
+          "ecr:GetDownloadUrlForLayer",
+          "ecr:BatchGetImage",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents",
+          "logs:CreateLogGroup",
+        ],
+        resources: ["*"], // Scope down if possible
+      })
+    );
 
-    const cluster = new ecs.Cluster(this, 'MyCluster', {
-
+    const cluster = new ecs.Cluster(this, "MyCluster", {
       vpc: vpc,
       containerInsights: true,
     });
 
     // 3. Create the ECS task definition
-    const taskDefinition = new ecs.FargateTaskDefinition(this, 'MyTaskDef', {
+    const taskDefinition = new ecs.FargateTaskDefinition(this, "MyTaskDef", {
       memoryLimitMiB: 4096,
       cpu: 2048,
 
@@ -103,8 +118,8 @@ export class EcsCdkStack extends Stack {
     });
 
     // Create a role for the Lambda functions
-    const lambdaExecutionRole = new iam.Role(this, 'LambdaExecutionRole', {
-      assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
+    const lambdaExecutionRole = new iam.Role(this, "LambdaExecutionRole", {
+      assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
     });
 
     lambdaExecutionRole.addManagedPolicy(
@@ -113,12 +128,11 @@ export class EcsCdkStack extends Stack {
       )
     );
 
-    
     // Define the Lambda function for adding
-    const addLambda = new lambda.Function(this, 'AddLambdaFunction', {
+    const addLambda = new lambda.Function(this, "AddLambdaFunction", {
       runtime: lambda.Runtime.PYTHON_3_9,
-      code: lambda.Code.fromAsset('lambda'), // Path to Lambda code directory
-      handler: 'lambda_function.lambda_handler',
+      code: lambda.Code.fromAsset("lambda"), // Path to Lambda code directory
+      handler: "lambda_function.lambda_handler",
 
       environment: {
         ECS_CLUSTER_NAME: cluster.clusterName,
@@ -136,37 +150,41 @@ export class EcsCdkStack extends Stack {
     });
 
     // Grant permissions for the add Lambda to invoke ECS tasks
-    addLambda.addToRolePolicy(new iam.PolicyStatement({
-      actions: [
-        'logs:CreateLogGroup',
-        'logs:CreateLogStream',
-        'logs:PutLogEvents',
-        'ecs:RunTask',
-        'ecs:DescribeTasks',
-        'iam:PassRole'],
-      resources: ['*'], // Scope down if possible
-    }));
-    
+    addLambda.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents",
+          "ecs:RunTask",
+          "ecs:DescribeTasks",
+          "iam:PassRole",
+        ],
+        resources: ["*"], // Scope down if possible
+      })
+    );
+
     // Grant necessary permissions to access S3
     bucket.grantRead(addLambda);
 
     // Add permissions for S3 to invoke addLambda
-    addLambda.addPermission('S3InvokeAddLambda', {
-      principal: new iam.ServicePrincipal('s3.amazonaws.com'),
-      action: 'lambda:InvokeFunction',
+    addLambda.addPermission("S3InvokeAddLambda", {
+      principal: new iam.ServicePrincipal("s3.amazonaws.com"),
+      action: "lambda:InvokeFunction",
       sourceArn: bucket.bucketArn,
     });
 
     // Define the Lambda function for handling S3 object deletion
-    const deleteLambda = new lambda.Function(this, 'DeleteLambdaFunction', {
+    const deleteLambda = new lambda.Function(this, "DeleteLambdaFunction", {
       runtime: lambda.Runtime.PYTHON_3_9,
-      handler: 'delete_lambda_function.lambda_handler',
-      code: lambda.Code.fromAsset('delete_lambda', {
+      handler: "delete_lambda_function.lambda_handler",
+      code: lambda.Code.fromAsset("delete_lambda", {
         bundling: {
           image: lambda.Runtime.PYTHON_3_9.bundlingImage,
           command: [
-            'bash', '-c',
-            'pip install -r requirements.txt -t /asset-output && cp -r . /asset-output'
+            "bash",
+            "-c",
+            "pip install -r requirements.txt -t /asset-output && cp -r . /asset-output",
           ],
         },
       }),
@@ -176,29 +194,32 @@ export class EcsCdkStack extends Stack {
       },
       timeout: cdk.Duration.seconds(30),
     });
-    
-    deleteLambda.addToRolePolicy(new iam.PolicyStatement({
-      actions: [
-        'logs:CreateLogGroup',
-        'logs:CreateLogStream',
-        'logs:PutLogEvents',
-        'ecs:RunTask',
-        'ecs:DescribeTasks',
-        'iam:PassRole'],
-      resources: ['*'], // Scope down if possible
-    }));
+
+    deleteLambda.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents",
+          "ecs:RunTask",
+          "ecs:DescribeTasks",
+          "iam:PassRole",
+        ],
+        resources: ["*"], // Scope down if possible
+      })
+    );
 
     // Grant necessary permissions to access S3 for the delete Lambda
     bucket.grantRead(deleteLambda);
 
     // Add permissions for S3 to invoke deleteLambda
-    deleteLambda.addPermission('S3InvokeDeleteLambda', {
-      principal: new iam.ServicePrincipal('s3.amazonaws.com'),
-      action: 'lambda:InvokeFunction',
+    deleteLambda.addPermission("S3InvokeDeleteLambda", {
+      principal: new iam.ServicePrincipal("s3.amazonaws.com"),
+      action: "lambda:InvokeFunction",
       sourceArn: bucket.bucketArn,
     });
 
-    const notificationOptions: { prefix?: string } = {};
+    const notificationOptions: { prefix?: string; suffix?: string } = {};
 
     if (process.env.S3_NOTIFICATION_PREFIX) {
       notificationOptions.prefix = process.env.S3_NOTIFICATION_PREFIX;
@@ -213,20 +234,20 @@ export class EcsCdkStack extends Stack {
       // Add the event notification with the filter (if either prefix or suffix exists)
       bucket.addEventNotification(
         s3.EventType.OBJECT_CREATED,
-        new s3_notifications.LambdaDestination(myLambda),
+        new s3_notifications.LambdaDestination(addLambda),
         notificationOptions
       );
     } else {
       // Add the event notification without any filter
       bucket.addEventNotification(
         s3.EventType.OBJECT_CREATED,
-        new s3_notifications.LambdaDestination(myLambda)
+        new s3_notifications.LambdaDestination(addLambda)
       );
     }
 
     // Create a custom resource to invoke the Lambda function after deployment
     const provider = new custom_resources.Provider(this, "Provider", {
-      onEventHandler: myLambda, // Pass your existing Lambda function here
+      onEventHandler: addLambda, // Pass your existing Lambda function here
     });
 
     // Trigger the Lambda for initial S3 bucket processing
