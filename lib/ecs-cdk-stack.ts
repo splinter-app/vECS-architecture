@@ -7,6 +7,8 @@ import * as ecs from "aws-cdk-lib/aws-ecs";
 import * as ec2 from "aws-cdk-lib/aws-ec2";
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as logs from "aws-cdk-lib/aws-logs";
+
+import * as custom_resources from "aws-cdk-lib/custom-resources";
 import * as dotenv from "dotenv";
 import { Construct } from "constructs";
 
@@ -27,13 +29,13 @@ export class EcsCdkStack extends Stack {
     const vpc = new ec2.Vpc(this, 'MyVpc', {
       maxAzs: 3,
       natGateways: 1,
-
     });
 
     const taskSecurityGroup = new ec2.SecurityGroup(this, "TaskSecurityGroup", {
       vpc,
       allowAllOutbound: true,
     });
+
 
     // Add specific inbound rules as needed
     taskSecurityGroup.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(80), 'Allow HTTP traffic');
@@ -100,11 +102,9 @@ export class EcsCdkStack extends Stack {
       containerPort: 80,
     });
 
-
     // Create a role for the Lambda functions
     const lambdaExecutionRole = new iam.Role(this, 'LambdaExecutionRole', {
       assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
-
     });
 
     lambdaExecutionRole.addManagedPolicy(
@@ -128,6 +128,7 @@ export class EcsCdkStack extends Stack {
         PINECONE_API_KEY: process.env.PINECONE_API_KEY!,
         EMBEDDING_MODEL_NAME: process.env.EMBEDDING_MODEL_NAME!,
         PINECONE_INDEX_NAME: process.env.PINECONE_INDEX_NAME!,
+        S3_BUCKET_NAME: process.env.S3_BUCKET_NAME!,
         SUBNET_ID: subnets[0],
         SECURITY_GROUP_ID: taskSecurityGroup.securityGroupId,
       },
@@ -222,5 +223,21 @@ export class EcsCdkStack extends Stack {
         new s3_notifications.LambdaDestination(myLambda)
       );
     }
+
+    // Create a custom resource to invoke the Lambda function after deployment
+    const provider = new custom_resources.Provider(this, "Provider", {
+      onEventHandler: myLambda, // Pass your existing Lambda function here
+    });
+
+    // Trigger the Lambda for initial S3 bucket processing
+    const customResource = new cdk.CustomResource(
+      this,
+      "InvokeLambdaAfterDeploy",
+      {
+        serviceToken: provider.serviceToken,
+      }
+    );
+
+    customResource.node.addDependency(bucket);
   }
 }
