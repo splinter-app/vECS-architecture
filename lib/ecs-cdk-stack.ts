@@ -1,14 +1,14 @@
-import * as cdk from 'aws-cdk-lib';
-import { Stack, StackProps } from 'aws-cdk-lib';
-import * as s3 from 'aws-cdk-lib/aws-s3';
-import * as lambda from 'aws-cdk-lib/aws-lambda';
-import * as s3_notifications from 'aws-cdk-lib/aws-s3-notifications';
-import * as ecs from 'aws-cdk-lib/aws-ecs';
-import * as ec2 from 'aws-cdk-lib/aws-ec2';
-import * as iam from 'aws-cdk-lib/aws-iam';
-import * as logs from 'aws-cdk-lib/aws-logs';
-import * as dotenv from 'dotenv';
-import { Construct } from 'constructs';
+import * as cdk from "aws-cdk-lib";
+import { Stack, StackProps } from "aws-cdk-lib";
+import * as s3 from "aws-cdk-lib/aws-s3";
+import * as lambda from "aws-cdk-lib/aws-lambda";
+import * as s3_notifications from "aws-cdk-lib/aws-s3-notifications";
+import * as ecs from "aws-cdk-lib/aws-ecs";
+import * as ec2 from "aws-cdk-lib/aws-ec2";
+import * as iam from "aws-cdk-lib/aws-iam";
+import * as logs from "aws-cdk-lib/aws-logs";
+import * as dotenv from "dotenv";
+import { Construct } from "constructs";
 
 dotenv.config();
 
@@ -17,15 +17,20 @@ export class EcsCdkStack extends Stack {
     super(scope, id, props);
 
     // 1. Define the S3 bucket (or reference an existing one)
-    const bucket = s3.Bucket.fromBucketName(this, 'MyExistingBucket', process.env.S3_BUCKET_NAME!);
+    const bucket = s3.Bucket.fromBucketName(
+      this,
+      "MyExistingBucket",
+      process.env.S3_BUCKET_NAME!
+    );
 
     // 2. Create the ECS cluster
     const vpc = new ec2.Vpc(this, 'MyVpc', {
       maxAzs: 3,
       natGateways: 1,
+
     });
 
-    const taskSecurityGroup = new ec2.SecurityGroup(this, 'TaskSecurityGroup', {
+    const taskSecurityGroup = new ec2.SecurityGroup(this, "TaskSecurityGroup", {
       vpc,
       allowAllOutbound: true,
     });
@@ -34,9 +39,10 @@ export class EcsCdkStack extends Stack {
     taskSecurityGroup.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(80), 'Allow HTTP traffic');
     taskSecurityGroup.addEgressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(443), 'Allow outbound HTTPS traffic');
 
+
     // Create an execution role for the Fargate task
-    const executionRole = new iam.Role(this, 'EcsTaskExecutionRole', {
-      assumedBy: new iam.ServicePrincipal('ecs-tasks.amazonaws.com'),
+    const executionRole = new iam.Role(this, "EcsTaskExecutionRole", {
+      assumedBy: new iam.ServicePrincipal("ecs-tasks.amazonaws.com"),
     });
 
     executionRole.addManagedPolicy(iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AmazonECSTaskExecutionRolePolicy'));
@@ -56,6 +62,7 @@ export class EcsCdkStack extends Stack {
     }));
 
     const cluster = new ecs.Cluster(this, 'MyCluster', {
+
       vpc: vpc,
       containerInsights: true,
     });
@@ -64,6 +71,7 @@ export class EcsCdkStack extends Stack {
     const taskDefinition = new ecs.FargateTaskDefinition(this, 'MyTaskDef', {
       memoryLimitMiB: 4096,
       cpu: 2048,
+
       runtimePlatform: {
         cpuArchitecture: ecs.CpuArchitecture.ARM64,
         operatingSystemFamily: ecs.OperatingSystemFamily.LINUX,
@@ -76,11 +84,13 @@ export class EcsCdkStack extends Stack {
     }).subnetIds;
 
     // 4. Add a container to the ECS task
-    const container = taskDefinition.addContainer('unstructured-demo', {
-      image: ecs.ContainerImage.fromRegistry('public.ecr.aws/q1n8b2k4/hcamacho/unstructured-demo:latest'),
+    const container = taskDefinition.addContainer("unstructured-demo", {
+      image: ecs.ContainerImage.fromRegistry(
+        "public.ecr.aws/q1n8b2k4/hcamacho/unstructured-demo:latest"
+      ),
       logging: new ecs.AwsLogDriver({
-        streamPrefix: 'ecs',
-        logGroup: new logs.LogGroup(this, 'EcsLogGroup', {
+        streamPrefix: "ecs",
+        logGroup: new logs.LogGroup(this, "EcsLogGroup", {
           removalPolicy: cdk.RemovalPolicy.DESTROY, // Adjust as needed
         }),
       }),
@@ -90,20 +100,26 @@ export class EcsCdkStack extends Stack {
       containerPort: 80,
     });
 
+
     // Create a role for the Lambda functions
     const lambdaExecutionRole = new iam.Role(this, 'LambdaExecutionRole', {
       assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
+
     });
 
     lambdaExecutionRole.addManagedPolicy(
-      iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSLambdaBasicExecutionRole')
+      iam.ManagedPolicy.fromAwsManagedPolicyName(
+        "service-role/AWSLambdaBasicExecutionRole"
+      )
     );
+
     
     // Define the Lambda function for adding
     const addLambda = new lambda.Function(this, 'AddLambdaFunction', {
       runtime: lambda.Runtime.PYTHON_3_9,
       code: lambda.Code.fromAsset('lambda'), // Path to Lambda code directory
       handler: 'lambda_function.lambda_handler',
+
       environment: {
         ECS_CLUSTER_NAME: cluster.clusterName,
         ECS_TASK_DEFINITION: taskDefinition.taskDefinitionArn,
@@ -187,18 +203,24 @@ export class EcsCdkStack extends Stack {
       notificationOptions.prefix = process.env.S3_NOTIFICATION_PREFIX;
     }
 
-    // Add the event notification to the bucket
-    bucket.addEventNotification(
-      s3.EventType.OBJECT_CREATED,
-      new s3_notifications.LambdaDestination(addLambda),
-      notificationOptions
-    );
+    if (process.env.S3_NOTIFICATION_SUFFIX) {
+      notificationOptions.suffix = process.env.S3_NOTIFICATION_SUFFIX;
+    }
 
-    // Add notification for deleting objects
-    bucket.addEventNotification(
-        s3.EventType.OBJECT_REMOVED,
-        new s3_notifications.LambdaDestination(deleteLambda),
+    // Conditionally add the event notification with or without the filter
+    if (notificationOptions.prefix || notificationOptions.suffix) {
+      // Add the event notification with the filter (if either prefix or suffix exists)
+      bucket.addEventNotification(
+        s3.EventType.OBJECT_CREATED,
+        new s3_notifications.LambdaDestination(myLambda),
         notificationOptions
-    );
+      );
+    } else {
+      // Add the event notification without any filter
+      bucket.addEventNotification(
+        s3.EventType.OBJECT_CREATED,
+        new s3_notifications.LambdaDestination(myLambda)
+      );
+    }
   }
 }
