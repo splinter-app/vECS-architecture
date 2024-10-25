@@ -7,6 +7,7 @@ import * as ecs from "aws-cdk-lib/aws-ecs";
 import * as ec2 from "aws-cdk-lib/aws-ec2";
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as logs from "aws-cdk-lib/aws-logs";
+
 import * as custom_resources from "aws-cdk-lib/custom-resources";
 import * as dotenv from "dotenv";
 import { Construct } from "constructs";
@@ -25,70 +26,54 @@ export class EcsCdkStack extends Stack {
     );
 
     // 2. Create the ECS cluster
-    const vpc = new ec2.Vpc(this, "MyVpc", {
-      maxAzs: 3, // Number of Availability Zones
-      natGateways: 1, // Use NAT for internet access if needed
+    const vpc = new ec2.Vpc(this, 'MyVpc', {
+      maxAzs: 3,
+      natGateways: 1,
     });
 
     const taskSecurityGroup = new ec2.SecurityGroup(this, "TaskSecurityGroup", {
       vpc,
-      allowAllOutbound: true, // Allow outbound traffic
+      allowAllOutbound: true,
     });
 
-    // Optional: Add specific inbound rules as needed
-    taskSecurityGroup.addIngressRule(
-      ec2.Peer.anyIpv4(),
-      ec2.Port.tcp(80),
-      "Allow HTTP traffic"
-    );
-    taskSecurityGroup.addEgressRule(
-      ec2.Peer.anyIpv4(),
-      ec2.Port.tcp(443),
-      "Allow outbound HTTPS traffic"
-    );
+
+    // Add specific inbound rules as needed
+    taskSecurityGroup.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(80), 'Allow HTTP traffic');
+    taskSecurityGroup.addEgressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(443), 'Allow outbound HTTPS traffic');
+
 
     // Create an execution role for the Fargate task
     const executionRole = new iam.Role(this, "EcsTaskExecutionRole", {
       assumedBy: new iam.ServicePrincipal("ecs-tasks.amazonaws.com"),
     });
 
-    // Attach the necessary policy to the execution role
-    executionRole.addManagedPolicy(
-      iam.ManagedPolicy.fromAwsManagedPolicyName(
-        "service-role/AmazonECSTaskExecutionRolePolicy"
-      )
-    );
-    executionRole.addManagedPolicy(
-      iam.ManagedPolicy.fromAwsManagedPolicyName(
-        "AmazonEC2ContainerRegistryReadOnly"
-      )
-    );
+    executionRole.addManagedPolicy(iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AmazonECSTaskExecutionRolePolicy'));
+    executionRole.addManagedPolicy(iam.ManagedPolicy.fromAwsManagedPolicyName('AmazonEC2ContainerRegistryReadOnly'));
 
-    // Inline policy for ECR permissions
-    executionRole.addToPolicy(
-      new iam.PolicyStatement({
-        actions: [
-          "ecr:GetAuthorizationToken",
-          "ecr:BatchCheckLayerAvailability",
-          "ecr:GetDownloadUrlForLayer",
-          "ecr:BatchGetImage",
-          "logs:CreateLogStream",
-          "logs:PutLogEvents",
-          "logs:CreateLogGroup",
-        ],
-        resources: ["*"], // You might want to scope this down to specific log groups
-      })
-    );
+    executionRole.addToPolicy(new iam.PolicyStatement({
+      actions: [
+        'ecr:GetAuthorizationToken',
+        'ecr:BatchCheckLayerAvailability',
+        'ecr:GetDownloadUrlForLayer',
+        'ecr:BatchGetImage',
+        'logs:CreateLogStream',
+        'logs:PutLogEvents',
+        'logs:CreateLogGroup',
+      ],
+      resources: ['*'], // Scope down if possible
+    }));
 
-    const cluster = new ecs.Cluster(this, "MyCluster", {
+    const cluster = new ecs.Cluster(this, 'MyCluster', {
+
       vpc: vpc,
-      containerInsights: true, // enabled for CloudWatch logs
+      containerInsights: true,
     });
 
     // 3. Create the ECS task definition
-    const taskDefinition = new ecs.FargateTaskDefinition(this, "MyTaskDef", {
-      memoryLimitMiB: 4096, // 3 GB
-      cpu: 2048, // 1 vCPU
+    const taskDefinition = new ecs.FargateTaskDefinition(this, 'MyTaskDef', {
+      memoryLimitMiB: 4096,
+      cpu: 2048,
+
       runtimePlatform: {
         cpuArchitecture: ecs.CpuArchitecture.ARM64,
         operatingSystemFamily: ecs.OperatingSystemFamily.LINUX,
@@ -97,7 +82,7 @@ export class EcsCdkStack extends Stack {
     });
 
     const subnets = vpc.selectSubnets({
-      subnetType: ec2.SubnetType.PUBLIC, // or PRIVATE based on your need
+      subnetType: ec2.SubnetType.PUBLIC,
     }).subnetIds;
 
     // 4. Add a container to the ECS task
@@ -111,30 +96,30 @@ export class EcsCdkStack extends Stack {
           removalPolicy: cdk.RemovalPolicy.DESTROY, // Adjust as needed
         }),
       }),
-      // memoryLimitMiB: 512,
     });
 
     container.addPortMappings({
       containerPort: 80,
     });
 
-    // Create a role for the Lambda function
-    const lambdaExecutionRole = new iam.Role(this, "LambdaExecutionRole", {
-      assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
+    // Create a role for the Lambda functions
+    const lambdaExecutionRole = new iam.Role(this, 'LambdaExecutionRole', {
+      assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
     });
 
-    // Attach the basic execution policy
     lambdaExecutionRole.addManagedPolicy(
       iam.ManagedPolicy.fromAwsManagedPolicyName(
         "service-role/AWSLambdaBasicExecutionRole"
       )
     );
 
-    // Define the Lambda function
-    const myLambda = new lambda.Function(this, "MyLambdaFunction", {
+    
+    // Define the Lambda function for adding
+    const addLambda = new lambda.Function(this, 'AddLambdaFunction', {
       runtime: lambda.Runtime.PYTHON_3_9,
-      code: lambda.Code.fromAsset("lambda"), // Path to Lambda code directory
-      handler: "lambda_function.lambda_handler", // File name and handler function
+      code: lambda.Code.fromAsset('lambda'), // Path to Lambda code directory
+      handler: 'lambda_function.lambda_handler',
+
       environment: {
         ECS_CLUSTER_NAME: cluster.clusterName,
         ECS_TASK_DEFINITION: taskDefinition.taskDefinitionArn,
@@ -147,28 +132,73 @@ export class EcsCdkStack extends Stack {
         SUBNET_ID: subnets[0],
         SECURITY_GROUP_ID: taskSecurityGroup.securityGroupId,
       },
-      timeout: cdk.Duration.seconds(30), // Adjust timeout as needed
+      timeout: cdk.Duration.seconds(30),
     });
 
-    // Grant permissions for the Lambda to invoke ECS tasks
-    myLambda.addToRolePolicy(
-      new iam.PolicyStatement({
-        actions: [
-          "logs:CreateLogGroup",
-          "logs:CreateLogStream",
-          "logs:PutLogEvents",
-          "ecs:RunTask",
-          "ecs:DescribeTasks",
-          "iam:PassRole",
-        ],
-        resources: ["*"],
-      })
-    );
-
+    // Grant permissions for the add Lambda to invoke ECS tasks
+    addLambda.addToRolePolicy(new iam.PolicyStatement({
+      actions: [
+        'logs:CreateLogGroup',
+        'logs:CreateLogStream',
+        'logs:PutLogEvents',
+        'ecs:RunTask',
+        'ecs:DescribeTasks',
+        'iam:PassRole'],
+      resources: ['*'], // Scope down if possible
+    }));
+    
     // Grant necessary permissions to access S3
-    bucket.grantRead(myLambda);
+    bucket.grantRead(addLambda);
 
-    const notificationOptions: { prefix?: string; suffix?: string } = {};
+    // Add permissions for S3 to invoke addLambda
+    addLambda.addPermission('S3InvokeAddLambda', {
+      principal: new iam.ServicePrincipal('s3.amazonaws.com'),
+      action: 'lambda:InvokeFunction',
+      sourceArn: bucket.bucketArn,
+    });
+
+    // Define the Lambda function for handling S3 object deletion
+    const deleteLambda = new lambda.Function(this, 'DeleteLambdaFunction', {
+      runtime: lambda.Runtime.PYTHON_3_9,
+      handler: 'delete_lambda_function.lambda_handler',
+      code: lambda.Code.fromAsset('delete_lambda', {
+        bundling: {
+          image: lambda.Runtime.PYTHON_3_9.bundlingImage,
+          command: [
+            'bash', '-c',
+            'pip install -r requirements.txt -t /asset-output && cp -r . /asset-output'
+          ],
+        },
+      }),
+      environment: {
+        PINECONE_API_KEY: process.env.PINECONE_API_KEY!,
+        PINECONE_INDEX_NAME: process.env.PINECONE_INDEX_NAME!,
+      },
+      timeout: cdk.Duration.seconds(30),
+    });
+    
+    deleteLambda.addToRolePolicy(new iam.PolicyStatement({
+      actions: [
+        'logs:CreateLogGroup',
+        'logs:CreateLogStream',
+        'logs:PutLogEvents',
+        'ecs:RunTask',
+        'ecs:DescribeTasks',
+        'iam:PassRole'],
+      resources: ['*'], // Scope down if possible
+    }));
+
+    // Grant necessary permissions to access S3 for the delete Lambda
+    bucket.grantRead(deleteLambda);
+
+    // Add permissions for S3 to invoke deleteLambda
+    deleteLambda.addPermission('S3InvokeDeleteLambda', {
+      principal: new iam.ServicePrincipal('s3.amazonaws.com'),
+      action: 'lambda:InvokeFunction',
+      sourceArn: bucket.bucketArn,
+    });
+
+    const notificationOptions: { prefix?: string } = {};
 
     if (process.env.S3_NOTIFICATION_PREFIX) {
       notificationOptions.prefix = process.env.S3_NOTIFICATION_PREFIX;
@@ -178,7 +208,7 @@ export class EcsCdkStack extends Stack {
       notificationOptions.suffix = process.env.S3_NOTIFICATION_SUFFIX;
     }
 
-    // Add the event notification to the bucket
+    // Conditionally add the event notification with or without the filter
     if (notificationOptions.prefix || notificationOptions.suffix) {
       // Add the event notification with the filter (if either prefix or suffix exists)
       bucket.addEventNotification(
