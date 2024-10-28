@@ -131,15 +131,7 @@ export class EcsCdkStack extends Stack {
     // Define the Lambda function for adding
     const addLambda = new lambda.Function(this, 'AddLambdaFunction', {
       runtime: lambda.Runtime.PYTHON_3_9,
-      code: lambda.Code.fromAsset('lambda', {
-        bundling: {
-          image: lambda.Runtime.PYTHON_3_9.bundlingImage,
-          command: [
-            'bash', '-c',
-            'pip install -r requirements.txt -t /asset-output && cp -r . /asset-output'
-          ],
-        },
-      }),
+      code: lambda.Code.fromAsset('lambda/python'),
       handler: 'add_lambda_function.lambda_handler',
       environment: {
         ECS_CLUSTER_NAME: cluster.clusterName,
@@ -182,15 +174,7 @@ export class EcsCdkStack extends Stack {
     // Define the Lambda function for handling S3 object deletion
     const deleteLambda = new lambda.Function(this, 'DeleteLambdaFunction', {
       runtime: lambda.Runtime.PYTHON_3_9,
-      code: lambda.Code.fromAsset('lambda', {
-        bundling: {
-          image: lambda.Runtime.PYTHON_3_9.bundlingImage,
-          command: [
-            'bash', '-c',
-            'pip install -r requirements.txt -t /asset-output && cp -r . /asset-output'
-          ],
-        },
-      }),
+      code: lambda.Code.fromAsset('lambda/python'),
       handler: 'delete_lambda_function.lambda_handler',
       environment: {
         PINECONE_API_KEY: process.env.PINECONE_API_KEY!,

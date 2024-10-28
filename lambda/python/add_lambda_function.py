@@ -9,6 +9,24 @@ from pinecone_utils import delete_from_pinecone
 ecs_client = boto3.client('ecs')
 s3_client = boto3.client('s3')
 
+# Read the app.py script from the Lambda's local file system
+# with open('s3_pinecone_ingest.py', 'r') as script_file:
+#     app_script = script_file.read()
+
+# app_script_json = json.dumps(app_script)
+
+# print("App script JSON:", app_script_json)
+
+# Read the app.py script from the Lambda's local file system
+with open('s3_pinecone_ingest.py', 'r') as script_file:
+    app_script = script_file.read()
+
+# Optionally, escape newlines for environment variable usage
+app_script_escaped = app_script.replace('\n', '\\n')
+
+print("App script:", app_script_escaped)
+
+
 def lambda_handler(event, context):
     # Check if this is a delete event (ie. CDK delete)
     if event.get('RequestType') == 'Delete':
@@ -107,7 +125,8 @@ def add_files(s3_url):
                         {'name': 'PINECONE_API_KEY', 'value': pinecone_api_key},
                         {'name': 'EMBEDDING_MODEL_NAME', 'value': embedding_model_name},
                         {'name': 'PINECONE_INDEX_NAME', 'value': pinecone_index_name},
-                        {'name': 'LOCAL_FILE_DOWNLOAD_DIR', 'value': local_file_download_dir}
+                        {'name': 'LOCAL_FILE_DOWNLOAD_DIR', 'value': local_file_download_dir},
+                        {'name': 'APP_SCRIPT', 'value': app_script_escaped},
                     ],
                 },
             ],
