@@ -204,23 +204,36 @@ export class EcsCdkStack extends Stack {
       sourceArn: bucket.bucketArn,
     });
 
-    const notificationOptions: { prefix?: string } = {};
-
+    // Check if the environment variable for prefix is defined
     if (process.env.S3_NOTIFICATION_PREFIX) {
-      notificationOptions.prefix = process.env.S3_NOTIFICATION_PREFIX;
+      const notificationOptions: s3.NotificationKeyFilter = {
+        prefix: process.env.S3_NOTIFICATION_PREFIX,
+      };
+
+      // Add event notifications with the prefix
+      bucket.addEventNotification(
+        s3.EventType.OBJECT_CREATED,
+        new s3_notifications.LambdaDestination(addLambda),
+        notificationOptions
+      );
+
+      bucket.addEventNotification(
+        s3.EventType.OBJECT_REMOVED,
+        new s3_notifications.LambdaDestination(deleteLambda),
+        notificationOptions
+      );
+    } else {
+      // Add event notifications without any additional options
+      bucket.addEventNotification(
+        s3.EventType.OBJECT_CREATED,
+        new s3_notifications.LambdaDestination(addLambda)
+      );
+
+      bucket.addEventNotification(
+        s3.EventType.OBJECT_REMOVED,
+        new s3_notifications.LambdaDestination(deleteLambda)
+      );
     }
-
-    bucket.addEventNotification(
-      s3.EventType.OBJECT_CREATED,
-      new s3_notifications.LambdaDestination(addLambda),
-      notificationOptions
-    );
-
-    bucket.addEventNotification(
-      s3.EventType.OBJECT_REMOVED,
-      new s3_notifications.LambdaDestination(deleteLambda),
-      notificationOptions
-    );
 
     // Create a custom resource to invoke the Lambda function after deployment
     const provider = new custom_resources.Provider(this, "Provider", {
