@@ -219,29 +219,34 @@ export class EcsCdkStack extends Stack {
       sourceArn: bucket.bucketArn,
     });
 
-    const notificationOptions: { prefix?: string; suffix?: string } = {};
-
+    // Check if the environment variable for prefix is defined
     if (process.env.S3_NOTIFICATION_PREFIX) {
-      notificationOptions.prefix = process.env.S3_NOTIFICATION_PREFIX;
-    }
+      const notificationOptions: s3.NotificationKeyFilter = {
+        prefix: process.env.S3_NOTIFICATION_PREFIX,
+      };
 
-    if (process.env.S3_NOTIFICATION_SUFFIX) {
-      notificationOptions.suffix = process.env.S3_NOTIFICATION_SUFFIX;
-    }
-
-    // Conditionally add the event notification with or without the filter
-    if (notificationOptions.prefix || notificationOptions.suffix) {
-      // Add the event notification with the filter (if either prefix or suffix exists)
+      // Add event notifications with the prefix
       bucket.addEventNotification(
         s3.EventType.OBJECT_CREATED,
         new s3_notifications.LambdaDestination(addLambda),
         notificationOptions
       );
+
+      bucket.addEventNotification(
+        s3.EventType.OBJECT_REMOVED,
+        new s3_notifications.LambdaDestination(deleteLambda),
+        notificationOptions
+      );
     } else {
-      // Add the event notification without any filter
+      // Add event notifications without any additional options
       bucket.addEventNotification(
         s3.EventType.OBJECT_CREATED,
         new s3_notifications.LambdaDestination(addLambda)
+      );
+
+      bucket.addEventNotification(
+        s3.EventType.OBJECT_REMOVED,
+        new s3_notifications.LambdaDestination(deleteLambda)
       );
     }
 

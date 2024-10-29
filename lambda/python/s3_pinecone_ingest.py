@@ -8,6 +8,8 @@ from unstructured_ingest.v2.processes.chunker import ChunkerConfig
 from unstructured_ingest.v2.processes.embedder import EmbedderConfig
 
 if __name__ == "__main__":
+    namespace = os.getenv("AWS_S3_URL").split("/")[-1]
+
     Pipeline.from_configs(
         context=ProcessorConfig(),
         indexer_config=S3IndexerConfig(remote_url=os.getenv("AWS_S3_URL")),
@@ -20,9 +22,6 @@ if __name__ == "__main__":
         ),
         partitioner_config=PartitionerConfig(
             partition_by_api=False,
-            # api_key=os.getenv("UNSTRUCTURED_API_KEY"),
-            # partition_endpoint=os.getenv("UNSTRUCTURED_API_URL"),
-            # strategy="hi_res",
         ),
         chunker_config=ChunkerConfig(
             chunking_strategy="basic",
@@ -41,5 +40,7 @@ if __name__ == "__main__":
             index_name=os.getenv("PINECONE_INDEX_NAME")
         ),
         stager_config=PineconeUploadStagerConfig(),
-        uploader_config=PineconeUploaderConfig()
+        uploader_config=PineconeUploaderConfig(
+            namespace=namespace
+        )
     ).run()
