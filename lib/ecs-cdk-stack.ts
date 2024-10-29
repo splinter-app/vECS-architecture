@@ -129,10 +129,11 @@ export class EcsCdkStack extends Stack {
     );
 
     // Define the Lambda function for adding
-    const addLambda = new lambda.Function(this, 'AddLambdaFunction', {
+    const addLambda = new lambda.Function(this, "AddLambdaFunction", {
       runtime: lambda.Runtime.PYTHON_3_9,
-      code: lambda.Code.fromAsset('lambda/python'),
-      handler: 'add_lambda_function.lambda_handler',
+      code: lambda.Code.fromAsset("lambda"), // Path to Lambda code directory
+      handler: "lambda_function.lambda_handler",
+
       environment: {
         ECS_CLUSTER_NAME: cluster.clusterName,
         ECS_TASK_DEFINITION: taskDefinition.taskDefinitionArn,
@@ -142,7 +143,6 @@ export class EcsCdkStack extends Stack {
         EMBEDDING_MODEL_NAME: process.env.EMBEDDING_MODEL_NAME!,
         PINECONE_INDEX_NAME: process.env.PINECONE_INDEX_NAME!,
         S3_BUCKET_NAME: process.env.S3_BUCKET_NAME!,
-        S3_NOTIFICATION_PREFIX: process.env.S3_NOTIFICATION_PREFIX || '',
         SUBNET_ID: subnets[0],
         SECURITY_GROUP_ID: taskSecurityGroup.securityGroupId,
       },
@@ -150,16 +150,19 @@ export class EcsCdkStack extends Stack {
     });
 
     // Grant permissions for the add Lambda to invoke ECS tasks
-    addLambda.addToRolePolicy(new iam.PolicyStatement({
-      actions: [
-        'logs:CreateLogGroup',
-        'logs:CreateLogStream',
-        'logs:PutLogEvents',
-        'ecs:RunTask',
-        'ecs:DescribeTasks',
-        'iam:PassRole'],
-      resources: ['*'], // Scope down if possible
-    }));
+    addLambda.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents",
+          "ecs:RunTask",
+          "ecs:DescribeTasks",
+          "iam:PassRole",
+        ],
+        resources: ["*"], // Scope down if possible
+      })
+    );
 
     // Grant necessary permissions to access S3
     bucket.grantRead(addLambda);
@@ -172,10 +175,19 @@ export class EcsCdkStack extends Stack {
     });
 
     // Define the Lambda function for handling S3 object deletion
-    const deleteLambda = new lambda.Function(this, 'DeleteLambdaFunction', {
+    const deleteLambda = new lambda.Function(this, "DeleteLambdaFunction", {
       runtime: lambda.Runtime.PYTHON_3_9,
-      code: lambda.Code.fromAsset('lambda/python'),
-      handler: 'delete_lambda_function.lambda_handler',
+      handler: "delete_lambda_function.lambda_handler",
+      code: lambda.Code.fromAsset("delete_lambda", {
+        bundling: {
+          image: lambda.Runtime.PYTHON_3_9.bundlingImage,
+          command: [
+            "bash",
+            "-c",
+            "pip install -r requirements.txt -t /asset-output && cp -r . /asset-output",
+          ],
+        },
+      }),
       environment: {
         PINECONE_API_KEY: process.env.PINECONE_API_KEY!,
         PINECONE_INDEX_NAME: process.env.PINECONE_INDEX_NAME!,
@@ -183,48 +195,59 @@ export class EcsCdkStack extends Stack {
       timeout: cdk.Duration.seconds(30),
     });
 
-    deleteLambda.addToRolePolicy(new iam.PolicyStatement({
-      actions: [
-        'logs:CreateLogGroup',
-        'logs:CreateLogStream',
-        'logs:PutLogEvents',
-        'ecs:RunTask',
-        'ecs:DescribeTasks',
-        'iam:PassRole'],
-      resources: ['*'], // Scope down if possible
-    }));
+    deleteLambda.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents",
+          "ecs:RunTask",
+          "ecs:DescribeTasks",
+          "iam:PassRole",
+        ],
+        resources: ["*"], // Scope down if possible
+      })
+    );
 
     // Grant necessary permissions to access S3 for the delete Lambda
     bucket.grantRead(deleteLambda);
 
     // Add permissions for S3 to invoke deleteLambda
-    deleteLambda.addPermission('S3InvokeDeleteLambda', {
-      principal: new iam.ServicePrincipal('s3.amazonaws.com'),
-      action: 'lambda:InvokeFunction',
+    deleteLambda.addPermission("S3InvokeDeleteLambda", {
+      principal: new iam.ServicePrincipal("s3.amazonaws.com"),
+      action: "lambda:InvokeFunction",
       sourceArn: bucket.bucketArn,
     });
 
-    const notificationOptions: { prefix?: string } = {};
+    const notificationOptions: { prefix?: string; suffix?: string } = {};
 
     if (process.env.S3_NOTIFICATION_PREFIX) {
       notificationOptions.prefix = process.env.S3_NOTIFICATION_PREFIX;
     }
 
-    bucket.addEventNotification(
-      s3.EventType.OBJECT_CREATED,
-      new s3_notifications.LambdaDestination(addLambda),
-      notificationOptions
-    );
+    if (process.env.S3_NOTIFICATION_SUFFIX) {
+      notificationOptions.suffix = process.env.S3_NOTIFICATION_SUFFIX;
+    }
 
-    bucket.addEventNotification(
-      s3.EventType.OBJECT_REMOVED,
-      new s3_notifications.LambdaDestination(deleteLambda),
-      notificationOptions
-    );
+    // Conditionally add the event notification with or without the filter
+    if (notificationOptions.prefix || notificationOptions.suffix) {
+      // Add the event notification with the filter (if either prefix or suffix exists)
+      bucket.addEventNotification(
+        s3.EventType.OBJECT_CREATED,
+        new s3_notifications.LambdaDestination(addLambda),
+        notificationOptions
+      );
+    } else {
+      // Add the event notification without any filter
+      bucket.addEventNotification(
+        s3.EventType.OBJECT_CREATED,
+        new s3_notifications.LambdaDestination(addLambda)
+      );
+    }
 
     // Create a custom resource to invoke the Lambda function after deployment
     const provider = new custom_resources.Provider(this, "Provider", {
-      onEventHandler: addLambda,
+      onEventHandler: addLambda, // Pass your existing Lambda function here
     });
 
     // Trigger the Lambda for initial S3 bucket processing
