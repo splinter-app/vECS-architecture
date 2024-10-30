@@ -21,14 +21,14 @@ export class EcsCdkStack extends Stack {
   constructor(scope: Construct, id: string, props?: StackProps) {
     super(scope, id, props);
 
-    // 1. Define the S3 bucket (or reference an existing one)
+    // Define the S3 bucket (or reference an existing one)
     const bucket = s3.Bucket.fromBucketName(
       this,
       "MyExistingBucket",
       process.env.S3_BUCKET_NAME!
     );
 
-    // 2. Create the VPC
+    // Create the VPC
     const vpc = new ec2.Vpc(this, "MyVpc", {
       maxAzs: 3,
       natGateways: 1,
@@ -73,7 +73,7 @@ export class EcsCdkStack extends Stack {
       ],
     });
 
-    // 3. Create a Batch Compute Environment with Fargate and ARM64 support
+    // Create a Batch Compute Environment with Fargate and ARM64 support
     const computeEnvironment = new batch.CfnComputeEnvironment(
       this,
       "MyBatchComputeEnv",
@@ -88,17 +88,17 @@ export class EcsCdkStack extends Stack {
               .securityGroupId,
           ],
         },
-        serviceRole: batchServiceRole.roleArn, // Attach service role here
+        serviceRole: batchServiceRole.roleArn,
       }
     );
 
-    // 4. Create a Batch Job Queue
+    // Create a Batch Job Queue
     const jobQueue = new batch.CfnJobQueue(this, "MyBatchJobQueue", {
       priority: 1,
       computeEnvironmentOrder: [
         {
           order: 1,
-          computeEnvironment: computeEnvironment.ref, // Use ref to get the compute environment's name
+          computeEnvironment: computeEnvironment.ref,
         },
       ],
     });
@@ -115,13 +115,13 @@ export class EcsCdkStack extends Stack {
         jobRoleArn: new iam.Role(this, "BatchJobRole", {
           assumedBy: new iam.ServicePrincipal("ecs-tasks.amazonaws.com"),
         }).roleArn,
-        executionRoleArn: batchExecutionRole.roleArn, // Add execution role here
+        executionRoleArn: batchExecutionRole.roleArn,
         runtimePlatform: {
           cpuArchitecture: "ARM64",
           operatingSystemFamily: "LINUX",
         },
       },
-      platformCapabilities: ["FARGATE"], // Specify Fargate as the platform
+      platformCapabilities: ["FARGATE"],
     });
 
     // Create a role for the Lambda functions
@@ -138,11 +138,11 @@ export class EcsCdkStack extends Stack {
     // Define the Lambda function for adding
     const addLambda = new lambda.Function(this, "AddLambdaFunction", {
       runtime: lambda.Runtime.PYTHON_3_9,
-      code: lambda.Code.fromAsset("lambda/python"), // Path to Lambda code directory
+      code: lambda.Code.fromAsset("lambda/python"),
       handler: "add_lambda_function.lambda_handler",
       environment: {
-        JOB_QUEUE: jobQueue.ref, // Use ref for the job queue's ARN
-        JOB_DEFINITION: jobDefinition.ref, // Use ref for the job definition's ARN
+        JOB_QUEUE: jobQueue.ref,
+        JOB_DEFINITION: jobDefinition.ref,
         MY_AWS_ACCESS_KEY_ID: process.env.MY_AWS_ACCESS_KEY_ID!,
         MY_AWS_SECRET_ACCESS_KEY: process.env.MY_AWS_SECRET_ACCESS_KEY!,
         PINECONE_API_KEY: process.env.PINECONE_API_KEY!,
@@ -175,7 +175,7 @@ export class EcsCdkStack extends Stack {
     const deleteLambda = new lambda.Function(this, "DeleteLambdaFunction", {
       runtime: lambda.Runtime.PYTHON_3_9,
       handler: "delete_lambda_function.lambda_handler",
-      code: lambda.Code.fromAsset("lambda/python"), // Path to Lambda code directory
+      code: lambda.Code.fromAsset("lambda/python"),
       environment: {
         PINECONE_API_KEY: process.env.PINECONE_API_KEY!,
         PINECONE_INDEX_NAME: process.env.PINECONE_INDEX_NAME!,
