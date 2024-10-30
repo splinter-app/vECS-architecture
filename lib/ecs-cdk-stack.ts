@@ -149,6 +149,7 @@ export class EcsCdkStack extends Stack {
         EMBEDDING_MODEL_NAME: process.env.EMBEDDING_MODEL_NAME!,
         PINECONE_INDEX_NAME: process.env.PINECONE_INDEX_NAME!,
         S3_BUCKET_NAME: process.env.S3_BUCKET_NAME!,
+        S3_NOTIFICATION_PREFIX: process.env.S3_NOTIFICATION_PREFIX || '',
       },
       timeout: cdk.Duration.seconds(30),
     });
