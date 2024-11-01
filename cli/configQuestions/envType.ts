@@ -8,4 +8,7 @@ export interface envType {
   embedding_provider_api_key?: string;
   chunking_strategy?: "basic" | "by_title" | "by_page" | "by_similarity";
   chunking_max_characters?: string;
+  mongodb_uri?: string;
+  mongodb_database?: string;
+  mongodb_collection?: string;
 }

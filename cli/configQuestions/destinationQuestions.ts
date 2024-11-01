@@ -35,5 +35,39 @@ export async function askDestinationQuestions(envObject: envType) {
     });
   }
 
+  if (destination.destinationConnector === "MongoDB") {
+    const { mongodb_uri } = await inquirer.prompt([
+      {
+        type: "input",
+        name: "mongodb_uri",
+        message: "Enter MongoDB URI:",
+        validate: (input) => input.trim() !== "" || "URI cannot be empty.",
+      },
+    ]);
+    const { mongodb_database } = await inquirer.prompt([
+      {
+        type: "input",
+        name: "mongodb_database",
+        message: "Enter MongoDB Database:",
+        validate: (input) =>
+          input.trim() !== "" || "Database name cannot be empty.",
+      },
+    ]);
+    const { mongodb_collection } = await inquirer.prompt([
+      {
+        type: "input",
+        name: "mongodb_collection",
+        message: "Enter MongoDB Collection:",
+        validate: (input) =>
+          input.trim() !== "" || "Collection name cannot be empty.",
+      },
+    ]);
+    Object.assign(envObject, {
+      mongodb_uri,
+      mongodb_database,
+      mongodb_collection,
+    });
+  }
+
   return destination;
 }
