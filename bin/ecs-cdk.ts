@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 import 'source-map-support/register';
 import * as cdk from 'aws-cdk-lib';
-import { EcsCdkStack } from '../lib/ecs-cdk-stack';
+import { S3_Pinecone_CDK_Stack } from '../lib/s3_pinecone_cdk_stack'
+import { S3_MongoDB_CDK_Stack } from '../lib/s3_mongodb_cdk_stack';
 
 const app = new cdk.App();
-new EcsCdkStack(app, 'EcsCdkStack', {
+new S3_Pinecone_CDK_Stack(app, 'S3PineconeCDKStack', {
   /* If you don't specify 'env', this stack will be environment-agnostic.
    * Account/Region-dependent features and context lookups will not work,
    * but a single synthesized template can be deployed anywhere. */
@@ -18,4 +19,8 @@ new EcsCdkStack(app, 'EcsCdkStack', {
   // env: { account: '123456789012', region: 'us-east-1' },
 
   /* For more information, see https://docs.aws.amazon.com/cdk/latest/guide/environments.html */
+});
+
+new S3_MongoDB_CDK_Stack(app, 'S3MongoDBCDKStack', {
+  
 });
