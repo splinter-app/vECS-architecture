@@ -1,9 +1,25 @@
 #!/usr/bin/env node
 
+import { execSync } from "child_process";
 import { Command } from "commander";
 import inquirer from "inquirer";
-import { execSync } from "child_process";
 import kleur = require("kleur");
+import * as fs from "fs";
+import * as path from "path";
+
+import { askSourceQuestions } from "./configQuestions/sourceQuestions";
+import { askDestinationQuestions } from "./configQuestions/destinationQuestions";
+import { askEmbeddingQuestions } from "./configQuestions/embeddingQuestions";
+import { askChunkQuestions } from "./configQuestions/chunkQuestions";
+import { askAWSQuestions } from "./configQuestions/awsQuestions";
+
+// Read and display the logo
+const logoPath = path.join(__dirname, "logo.txt");
+const logo = fs.readFileSync(logoPath, "utf8");
+console.log(kleur.red().bold(logo));
+
+console.log(kleur.green("Welcome to the Splinter Deploy CLI!"));
+
 const program = new Command();
 
 program
@@ -17,109 +33,25 @@ program
   .command("deploy")
   .description("Deploy the CDK stack with specified options.")
   .action(async () => {
-    // Initial questions
-    const source = await inquirer.prompt([
-      {
-        type: "list",
-        name: "sourceConnector",
-        message: "Choose your source connector:",
-        choices: ["S3", "Google Drive", "Dropbox"],
-      },
-    ]);
+    const awsKeys = await askAWSQuestions();
+    let envObject = { ...awsKeys };
 
-    // Ask for S3 bucket name if the source connector is S3
-    if (source.sourceConnector === "S3") {
-      const { s3BucketName } = await inquirer.prompt([
-        {
-          type: "input",
-          name: "s3BucketName",
-          message: "Enter the name of the S3 bucket:",
-          validate: (input) =>
-            input.trim() !== "" || "S3 bucket name cannot be empty.",
-        },
-      ]);
-    }
+    const source = await askSourceQuestions(envObject);
+    const destination = await askDestinationQuestions(envObject);
+    const embedding = await askEmbeddingQuestions(envObject);
+    const chunkSettings = await askChunkQuestions(envObject);
 
-    const destination = await inquirer.prompt([
-      {
-        type: "list",
-        name: "destinationConnector",
-        message: "Choose your destination connector:",
-        choices: ["Pinecone", "MongoDB", "PostgreSQL"],
-      },
-    ]);
-
-    if (destination.destinationConnector === "Pinecone") {
-      const { pineconeIndexName } = await inquirer.prompt([
-        {
-          type: "input",
-          name: "pineconeIndexName",
-          message: "Enter the name of the Pinecone index:",
-          validate: (input) =>
-            input.trim() !== "" || "Index name cannot be empty.",
-        },
-      ]);
-    }
-
-    const embedding = await inquirer.prompt([
-      {
-        type: "list",
-        name: "embeddingProvider",
-        message: "Select an embedding provider:",
-        choices: ["Huggingface", "OpenAI", "VoyageAI", "Bedrock"],
-      },
-    ]);
-
-    if (embedding.embeddingProvider === "OpenAI") {
-      const { embeddingModelName } = await inquirer.prompt([
-        {
-          type: "list",
-          name: "embeddingModelName",
-          message: "Select OpenAI embedding model:",
-          choices: [
-            "text-embedding-3-small",
-            "text-embedding-3-large",
-            "text-embedding-ada-002",
-          ],
-        },
-      ]);
-      const { openaiAPIKey } = await inquirer.prompt([
-        {
-          type: "input",
-          name: "openaiAPIKey",
-          message: "Enter your OpenAI API Key:",
-          validate: (input) =>
-            input.trim() !== "" || "API Key cannot be empty.",
-        },
-      ]);
-    }
-
-    // Continue with the remaining questions
-    const additionalAnswers = await inquirer.prompt([
-      {
-        type: "list",
-        name: "chunkStrategy",
-        message: "Choose your chunking strategy:",
-        choices: ["Basic", "By Title", "By Page", "By Similarity"],
-      },
-      {
-        type: "list",
-        name: "chunkSize",
-        message: "Choose your chunk size:",
-        choices: ["500", "1000", "1500", "2000"],
-      },
-    ]);
-
-    // Merge answers
-    const fullAnswers = {
+    const fullConfig = {
       ...source,
       ...destination,
       ...embedding,
-      ...additionalAnswers,
+      ...chunkSettings,
     };
 
     console.log("Deploying with the following options:");
-    console.log(fullAnswers);
+    console.log(fullConfig);
+
+    writeEnvFile(envObject);
 
     // Execute the deployment command with error handling
     try {
@@ -131,3 +63,16 @@ program
   });
 
 program.parse(process.argv);
+
+// Helper function to write answers to .env file
+function writeEnvFile(envObject: Record<string, string>) {
+  const envFilePath = path.resolve(process.cwd(), ".env");
+  const envData = Object.entries(envObject)
+    .map(([key, value]) => `${key.toUpperCase()}=${value}`)
+    .join("\n");
+
+  fs.writeFileSync(envFilePath, envData);
+  console.log(
+    kleur.green(".env file created/updated with your configurations.")
+  );
+}
