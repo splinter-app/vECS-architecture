@@ -14,11 +14,14 @@ import { askChunkQuestions } from "./configQuestions/chunkQuestions";
 import { askAWSQuestions } from "./configQuestions/awsQuestions";
 
 // Read and display the logo
-const logoPath = path.join(__dirname, "logo.txt");
-const logo = fs.readFileSync(logoPath, "utf8");
-console.log(kleur.red().bold(logo));
 
-console.log(kleur.green("Welcome to the Splinter Deploy CLI!"));
+function displayWelcome() {
+  const logoPath = path.join(__dirname, "logo.txt");
+  const logo = fs.readFileSync(logoPath, "utf8");
+  console.log(kleur.red().bold(logo));
+  console.log(kleur.green("Welcome to the Splinter Deploy CLI!"));
+}
+
 
 const program = new Command();
 
@@ -33,6 +36,8 @@ program
   .command("deploy")
   .description("Deploy the CDK stack with specified options.")
   .action(async () => {
+
+    displayWelcome();
     const awsKeys = await askAWSQuestions();
     let envObject = { ...awsKeys };
 
@@ -53,11 +58,61 @@ program
 
     writeEnvFile(envObject);
 
-    // Execute the deployment command with error handling
+
+    const stackMapping: { [key: string]: string } = {
+      "S3:Pinecone": "S3PineconeCDKStack",
+      "S3:MongoDB": "S3MongoDBCDKStack",
+      "S3:PostgreSQL": "S3PostgresCDKStack",
+    };
+
+    const stackKey = `${source.sourceConnector}:${destination.destinationConnector}`;
+    const stackToDeploy = stackMapping[stackKey];
+
+    if (!stackToDeploy) {
+      console.error("No matching stack found for the selected options.");
+      process.exit(1);
+    }
+
+    // Execute the deployment command for the selected stack
     try {
-      execSync("npx cdk deploy", { stdio: "inherit" });
+      execSync(`npx cdk deploy ${stackToDeploy} --require-approval never`, { stdio: "inherit" });
+
     } catch (error) {
       console.error("Deployment failed:", error);
+      process.exit(1);
+    }
+  });
+
+program
+  .command("destroy")
+  .description("Destroy the CDK stack.")
+  .action(async () => {
+    console.log(kleur.red().bold("WARNING: This action is permanent and cannot be undone!"));
+
+    const { stackToDestroy } = await inquirer.prompt([
+      {
+        type: "list",
+        name: "stackToDestroy",
+        message: "Select the stack you wish to destroy:",
+        choices: [
+          "S3PineconeCDKStack",
+          "S3MongoDBCDKStack",
+          "S3PostgresCDKStack",
+          new inquirer.Separator(),
+          "Cancel"
+        ],
+      },
+    ]);
+
+    if (stackToDestroy === "Cancel") {
+      console.log(kleur.yellow("Operation cancelled. Returning to CLI."));
+      return;
+    }
+
+    try {
+      execSync(`npx cdk destroy ${stackToDestroy} --require-approval never --force`, { stdio: "inherit" });
+    } catch (error) {
+      console.error("Destruction failed:", error);
       process.exit(1);
     }
   });
@@ -76,3 +131,4 @@ function writeEnvFile(envObject: Record<string, string>) {
     kleur.green(".env file created/updated with your configurations.")
   );
 }
+
