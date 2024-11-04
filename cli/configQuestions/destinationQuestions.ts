@@ -1,5 +1,6 @@
 import inquirer from "inquirer";
 import { envType } from "./envType";
+
 import kleur = require("kleur");
 
 function displayPostgresInstructions(postgresTableName: string) {
@@ -62,6 +63,7 @@ CREATE TABLE ${postgresTableName} (
   console.log(kleur.blue(sqlCode));
 }
 
+
 export async function askDestinationQuestions(envObject: envType) {
   const destination = await inquirer.prompt([
     {
@@ -99,6 +101,7 @@ export async function askDestinationQuestions(envObject: envType) {
   if (destination.destinationConnector === "MongoDB") {
     const { mongodb_uri } = await inquirer.prompt([
       {
+
         type: "password",
         name: "mongodb_uri",
         message: "Enter MongoDB URI:",
@@ -129,6 +132,7 @@ export async function askDestinationQuestions(envObject: envType) {
       mongodb_collection,
     });
   }
+
 
   if (destination.destinationConnector === "PostgreSQL") {
     const { postgres_host } = await inquirer.prompt([
