@@ -81,6 +81,47 @@ program
     }
   });
 
+program
+  .command("destroy")
+  .description("Destroy the CDK stack.")
+  .action(async () => {
+    console.log(
+      kleur
+        .red()
+        .bold("WARNING: This action is permanent and cannot be undone!")
+    );
+
+    const { stackToDestroy } = await inquirer.prompt([
+      {
+        type: "list",
+        name: "stackToDestroy",
+        message: "Select the stack you wish to destroy:",
+        choices: [
+          "S3PineconeCDKStack",
+          "S3MongoDBCDKStack",
+          "S3PostgresCDKStack",
+          new inquirer.Separator(),
+          "Cancel",
+        ],
+      },
+    ]);
+
+    if (stackToDestroy === "Cancel") {
+      console.log(kleur.yellow("Operation cancelled. Returning to CLI."));
+      return;
+    }
+
+    try {
+      execSync(
+        `npx cdk destroy ${stackToDestroy} --require-approval never --force`,
+        { stdio: "inherit" }
+      );
+    } catch (error) {
+      console.error("Destruction failed:", error);
+      process.exit(1);
+    }
+  });
+
 program.parse(process.argv);
 
 // Helper function to write answers to .env file
