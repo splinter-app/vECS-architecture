@@ -3,6 +3,7 @@ import os
 import boto3
 import botocore
 import uuid
+import urllib
 from postgres_utils import delete_from_postgres
 
 # Initialize the Batch client and S3 client
@@ -29,10 +30,12 @@ def lambda_handler(event, context):
         bucket_name = event['Records'][0]['s3']['bucket']['name']
         document_key = event['Records'][0]['s3']['object']['key']
         
-        s3_url = f"s3://{bucket_name}/{document_key}"
+        decoded_document_key = urllib.parse.unquote(document_key)
+        decoded_document_with_spaces = decoded_document_key.replace('+', ' ').replace('%20', ' ')
+        s3_url = f"s3://{bucket_name}/{decoded_document_with_spaces}"
 
-        if does_object_exist(bucket_name, document_key):
-            print(f"Object {document_key} already exists. Running delete logic.")
+        if does_object_exist(bucket_name, decoded_document_with_spaces):
+            print(f"Object {decoded_document_with_spaces} already exists. Running delete logic.")
             # Retrieve the Postgres info from environment variables
             db_name = os.environ['POSTGRES_DB_NAME']
             user = os.environ['POSTGRES_USER']
@@ -41,7 +44,7 @@ def lambda_handler(event, context):
             port = os.environ['POSTGRES_PORT']
             table_name = os.environ['POSTGRES_TABLE_NAME']
             try:
-                delete_from_postgres(db_name, user, password, host, port, table_name, os.path.basename(document_key))
+                delete_from_postgres(db_name, user, password, host, port, table_name, os.path.basename(decoded_document_with_spaces))
             except Exception as e:
                 print(f"Error deleting from Postgres: {e}")
 
@@ -96,7 +99,9 @@ def add_files(s3_url):
     host = os.environ['POSTGRES_HOST']
     port = os.environ['POSTGRES_PORT']
     table_name = os.environ['POSTGRES_TABLE_NAME']
+    embedding_provider = os.environ['EMBEDDING_PROVIDER']
     embedding_model_name = os.environ['EMBEDDING_MODEL_NAME']
+    embedding_provider_api_key = os.environ['EMBEDDING_PROVIDER_API_KEY']
     local_file_download_dir = '/tmp/'  # Temporary directory for Lambda file storage
 
     # Generate a valid job name
@@ -118,7 +123,9 @@ def add_files(s3_url):
                 {'name': 'POSTGRES_HOST', 'value': host},
                 {'name': 'POSTGRES_PORT', 'value': port},
                 {'name': 'POSTGRES_TABLE_NAME', 'value': table_name},
+                {'name': 'EMBEDDING_PROVIDER', 'value': embedding_provider},
                 {'name': 'EMBEDDING_MODEL_NAME', 'value': embedding_model_name},
+                {'name': 'EMBEDDING_PROVIDER_API_KEY', 'value': embedding_provider_api_key},
                 {'name': 'LOCAL_FILE_DOWNLOAD_DIR', 'value': local_file_download_dir},
                 {'name': 'APP_SCRIPT', 'value': app_script},
             ],
