@@ -3,6 +3,7 @@ import os
 import boto3
 import botocore
 import uuid
+import urllib.parse
 from mongodb_utils import delete_from_mongodb
 
 # Initialize the Batch client and S3 client
@@ -29,15 +30,17 @@ def lambda_handler(event, context):
         bucket_name = event['Records'][0]['s3']['bucket']['name']
         document_key = event['Records'][0]['s3']['object']['key']
         
-        s3_url = f"s3://{bucket_name}/{document_key}"
+        decoded_document_key = urllib.parse.unquote(document_key)
+        decoded_document_with_spaces = decoded_document_key.replace('+', ' ').replace('%20', ' ')
+        s3_url = f"s3://{bucket_name}/{decoded_document_with_spaces}"
 
-        if does_object_exist(bucket_name, document_key):
-            print(f"Object {document_key} already exists. Running delete logic.")
+        if does_object_exist(bucket_name, decoded_document_with_spaces):
+            print(f"Object {decoded_document_with_spaces} already exists. Running delete logic.")
             uri = os.environ['MONGODB_URI']
             database_name = os.environ['MONGODB_DATABASE']
             collection_name = os.environ['MONGODB_COLLECTION']
             try:
-                delete_from_mongodb(os.path.basename(document_key), uri, database_name, collection_name)
+                delete_from_mongodb(os.path.basename(decoded_document_with_spaces), uri, database_name, collection_name)
             except Exception as e:
                 print(f"Error deleting from MongoDB: {e}")
 
@@ -86,10 +89,12 @@ def add_files(s3_url):
     # Environment variables 
     aws_access_key = os.environ['MY_AWS_ACCESS_KEY_ID']
     aws_secret_key = os.environ['MY_AWS_SECRET_ACCESS_KEY']
+    embedding_provider = os.environ['EMBEDDING_PROVIDER']
+    embedding_model_name = os.environ['EMBEDDING_MODEL_NAME']
+    embedding_provider_api_key = os.environ['EMBEDDING_PROVIDER_API_KEY']
     mongodb_uri = os.environ['MONGODB_URI']
     mongodb_database = os.environ['MONGODB_DATABASE']
     mongodb_collection = os.environ['MONGODB_COLLECTION']
-    embedding_model_name = os.environ['EMBEDDING_MODEL_NAME']
     local_file_download_dir = '/tmp/'  # Temporary directory for Lambda file storage
 
     # Generate a valid job name
@@ -105,10 +110,12 @@ def add_files(s3_url):
                 {'name': 'AWS_S3_URL', 'value': s3_url},
                 {'name': 'AWS_ACCESS_KEY_ID', 'value': aws_access_key},
                 {'name': 'AWS_SECRET_ACCESS_KEY', 'value': aws_secret_key},
+                {'name': 'EMBEDDING_PROVIDER', 'value': embedding_provider},
+                {'name': 'EMBEDDING_MODEL_NAME', 'value': embedding_model_name},
+                {'name': 'EMBEDDING_PROVIDER_API_KEY', 'value': embedding_provider_api_key},
                 {'name': 'MONGODB_URI', 'value': mongodb_uri},
                 {'name': 'MONGODB_DATABASE', 'value': mongodb_database},
                 {'name': 'MONGODB_COLLECTION', 'value': mongodb_collection},
-                {'name': 'EMBEDDING_MODEL_NAME', 'value': embedding_model_name},
                 {'name': 'LOCAL_FILE_DOWNLOAD_DIR', 'value': local_file_download_dir},
                 {'name': 'APP_SCRIPT', 'value': app_script},
             ],
