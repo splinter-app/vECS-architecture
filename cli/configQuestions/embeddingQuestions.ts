@@ -25,6 +25,7 @@ export async function askEmbeddingQuestions(envObject: envType) {
       },
     ]);
     Object.assign(envObject, {
+      embedding_provider: embedding.embeddingProvider.toLowerCase(),
       embedding_model_name: embeddingModelName,
     });
     Object.assign(embedding, { embeddingModelName: embeddingModelName });
@@ -52,10 +53,38 @@ export async function askEmbeddingQuestions(envObject: envType) {
       },
     ]);
     Object.assign(envObject, {
+      embedding_provider: embedding.embeddingProvider.toLowerCase(),
       embedding_model_name: embeddingModelName,
       embedding_provider_api_key: openaiAPIKey,
     });
-    Object.assign(embedding, { embeddingModelName: embeddingModelName });
+  }
+
+  if (embedding.embeddingProvider === "VoyageAI") {
+    const { embeddingModelName } = await inquirer.prompt([
+      {
+        type: "list",
+        name: "embeddingModelName",
+        message: "Select VoyageAI embedding model:",
+        choices: [
+          "voyage-2",
+          "voyage-3",
+          "voyage-3-lite",
+        ],
+      },
+    ]);
+    const { voyageAPIKey } = await inquirer.prompt([
+      {
+        type: "input",
+        name: "voyageAPIKey",
+        message: "Enter your VoyageAI API Key:",
+        validate: (input) => input.trim() !== "" || "API Key cannot be empty.",
+      },
+    ]);
+    Object.assign(envObject, {
+      embedding_provider: embedding.embeddingProvider.toLowerCase(),
+      embedding_model_name: embeddingModelName,
+      embedding_provider_api_key: voyageAPIKey,
+    });
   }
 
   return embedding;

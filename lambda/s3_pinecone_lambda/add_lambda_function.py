@@ -3,6 +3,7 @@ import os
 import boto3
 import botocore
 import uuid
+import urllib.parse
 from pinecone_utils import delete_from_pinecone
 
 # Initialize the Batch client and S3 client
@@ -29,15 +30,17 @@ def lambda_handler(event, context):
         bucket_name = event['Records'][0]['s3']['bucket']['name']
         document_key = event['Records'][0]['s3']['object']['key']
         
-        s3_url = f"s3://{bucket_name}/{document_key}"
+        decoded_document_key = urllib.parse.unquote(document_key)
+        decoded_document_with_spaces = decoded_document_key.replace('+', ' ').replace('%20', ' ')
+        s3_url = f"s3://{bucket_name}/{decoded_document_with_spaces}"
 
-        if does_object_exist(bucket_name, document_key):
-            print(f"Object {document_key} already exists. Running delete logic.")
+        if does_object_exist(bucket_name, decoded_document_with_spaces):
+            print(f"Object {decoded_document_with_spaces} already exists. Running delete logic.")
             # Retrieve the API key and index name from environment variables
             api_key = os.environ['PINECONE_API_KEY']
             index_name = os.environ['PINECONE_INDEX_NAME']
             try:
-                delete_from_pinecone(os.path.basename(document_key), api_key, index_name)
+                delete_from_pinecone(os.path.basename(decoded_document_with_spaces), api_key, index_name)
             except Exception as e:
                 print(f"Error deleting from Pinecone: {e}")
 
@@ -86,7 +89,7 @@ def add_files(s3_url):
     # Environment variables 
     aws_access_key = os.environ['MY_AWS_ACCESS_KEY_ID']
     aws_secret_key = os.environ['MY_AWS_SECRET_ACCESS_KEY']
-    pinecone_api_key = os.environ['PINECONE_API_KEY']
+    embedding_provider = os.environ['EMBEDDING_PROVIDER']
     embedding_model_name = os.environ['EMBEDDING_MODEL_NAME']
     pinecone_index_name = os.environ['PINECONE_INDEX_NAME']
     local_file_download_dir = '/tmp/'  # Temporary directory for Lambda file storage
@@ -104,7 +107,7 @@ def add_files(s3_url):
                 {'name': 'AWS_S3_URL', 'value': s3_url},
                 {'name': 'AWS_ACCESS_KEY_ID', 'value': aws_access_key},
                 {'name': 'AWS_SECRET_ACCESS_KEY', 'value': aws_secret_key},
-                {'name': 'PINECONE_API_KEY', 'value': pinecone_api_key},
+                {'name': 'EMBEDDING_PROVIDER', 'value': embedding_provider},
                 {'name': 'EMBEDDING_MODEL_NAME', 'value': embedding_model_name},
                 {'name': 'PINECONE_INDEX_NAME', 'value': pinecone_index_name},
                 {'name': 'LOCAL_FILE_DOWNLOAD_DIR', 'value': local_file_download_dir},

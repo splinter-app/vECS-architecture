@@ -1,6 +1,7 @@
-# lambda/delete_lambda_function.py
+# lambda/s3_postgres_lambda/delete_lambda_function.py
 import json
 import os
+import urllib.parse
 from postgres_utils import delete_from_postgres
 
 def lambda_handler(event, context):
@@ -19,11 +20,14 @@ def lambda_handler(event, context):
         print(f"Deleting File: {filename} from Bucket: {s3_bucket}")
 
         try:
-            delete_from_postgres(db_name, user, password, host, port, table_name, filename)
+            decoded_filename = urllib.parse.unquote(filename)
+            decoded_filename_with_spaces = decoded_filename.replace('+', ' ').replace('%20', ' ')
+            delete_from_postgres(db_name, user, password, host, port, table_name, decoded_filename_with_spaces)
+            print(f"Deleted File: {decoded_filename_with_spaces} from Bucket: {s3_bucket}")
         except Exception as e:
             print(f"Error deleting from Postgres: {e}")
 
     return {
         'statusCode': 200,
-        'body': json.dumps('Processed deleted files and updated Postgres.')
+        'body': json.dumps('Deleted files from PostgreSQL.')
     }

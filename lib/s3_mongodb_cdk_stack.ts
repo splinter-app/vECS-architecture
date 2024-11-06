@@ -32,10 +32,12 @@ export class S3MongoDBCDKStack extends Stack {
           JOB_DEFINITION: batchStack.jobDefinitionRef,
           MY_AWS_ACCESS_KEY_ID: process.env.MY_AWS_ACCESS_KEY_ID!,
           MY_AWS_SECRET_ACCESS_KEY: process.env.MY_AWS_SECRET_ACCESS_KEY!,
+          EMBEDDING_PROVIDER: process.env.EMBEDDING_PROVIDER!,
+          EMBEDDING_MODEL_NAME: process.env.EMBEDDING_MODEL_NAME!,
+          EMBEDDING_PROVIDER_API_KEY: process.env.EMBEDDING_PROVIDER_API_KEY || '',
           MONGODB_URI: process.env.MONGODB_URI!,
           MONGODB_DATABASE: process.env.MONGODB_DATABASE!,
           MONGODB_COLLECTION: process.env.MONGODB_COLLECTION!,
-          EMBEDDING_MODEL_NAME: process.env.EMBEDDING_MODEL_NAME!,
           S3_BUCKET_NAME: process.env.S3_BUCKET_NAME!,
           S3_NOTIFICATION_PREFIX: process.env.S3_NOTIFICATION_PREFIX || '',
         }

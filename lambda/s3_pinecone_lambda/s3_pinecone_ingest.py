@@ -1,4 +1,4 @@
-# Start S3 and populate Pinecone via huggingface
+# Start S3 and populate Pinecone
 
 import os
 from unstructured_ingest.v2.pipeline.pipeline import Pipeline
@@ -32,7 +32,7 @@ if __name__ == "__main__":
         ),
 
         embedder_config=EmbedderConfig(
-            embedding_provider="huggingface",
+            embedding_provider=os.getenv("EMBEDDING_PROVIDER"),
             embedding_model_name=os.getenv("EMBEDDING_MODEL_NAME"),
         ),
         destination_connection_config=PineconeConnectionConfig(

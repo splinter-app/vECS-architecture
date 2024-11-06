@@ -1,4 +1,4 @@
-# Start S3 and populate Mongodb via huggingface
+# Start S3 and populate Mongodb
 
 import os
 from unstructured_ingest.v2.pipeline.pipeline import Pipeline
@@ -36,8 +36,9 @@ if __name__ == "__main__":
         ),
         chunker_config=ChunkerConfig(chunking_strategy="by_title"),
         embedder_config=EmbedderConfig(
-            embedding_provider="huggingface",
-            embedding_model_name="BAAI/bge-base-en-v1.5",
+            embedding_provider=os.getenv("EMBEDDING_PROVIDER"),
+            embedding_model_name=os.getenv("EMBEDDING_MODEL_NAME"),
+            embedding_api_key=os.getenv("EMBEDDING_PROVIDER_API_KEY"),
         ),
         destination_connection_config=MongoDBConnectionConfig(
             access_config=MongoDBAccessConfig(

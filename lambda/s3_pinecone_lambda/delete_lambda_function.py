@@ -1,6 +1,7 @@
-# lambda/delete_lambda_function.py
+# lambda/s3_pinecone_lambda/delete_lambda_function.py
 import json
 import os
+import urllib.parse
 from pinecone_utils import delete_from_pinecone
 
 def lambda_handler(event, context):
@@ -13,10 +14,12 @@ def lambda_handler(event, context):
         s3_key = record['s3']['object']['key']
 
         filename = os.path.basename(s3_key)
-        print(f"Deleting File: {filename} from Bucket: {s3_bucket}")
 
         try:
-            delete_from_pinecone(filename, api_key, index_name)
+            decoded_filename = urllib.parse.unquote(filename)
+            decoded_filename_with_spaces = decoded_filename.replace('+', ' ').replace('%20', ' ')
+            delete_from_pinecone(decoded_filename_with_spaces, api_key, index_name)
+            print(f"Deleted File: {decoded_filename_with_spaces} from Bucket: {s3_bucket}")
         except Exception as e:
             print(f"Error deleting from Pinecone: {e}")
 
