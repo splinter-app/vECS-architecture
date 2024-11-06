@@ -59,10 +59,13 @@ CREATE TABLE ${postgresTableName} (
 );
   `;
 
-  console.log(kleur.yellow("Please ensure that your table has the correct schema definition."));
+  console.log(
+    kleur.yellow(
+      "Please ensure that your table has the correct schema definition."
+    )
+  );
   console.log(kleur.blue(sqlCode));
 }
-
 
 export async function askDestinationQuestions(envObject: envType) {
   const destination = await inquirer.prompt([
@@ -101,7 +104,6 @@ export async function askDestinationQuestions(envObject: envType) {
   if (destination.destinationConnector === "MongoDB") {
     const { mongodb_uri } = await inquirer.prompt([
       {
-
         type: "password",
         name: "mongodb_uri",
         message: "Enter MongoDB URI:",
@@ -133,7 +135,6 @@ export async function askDestinationQuestions(envObject: envType) {
     });
   }
 
-
   if (destination.destinationConnector === "PostgreSQL") {
     const { postgres_host } = await inquirer.prompt([
       {
@@ -151,7 +152,9 @@ export async function askDestinationQuestions(envObject: envType) {
         default: "5432",
         validate: (input) => {
           const port = input.trim();
-          return port === '' || !isNaN(Number(port)) ? true : "Port must be a number.";
+          return port === "" || !isNaN(Number(port))
+            ? true
+            : "Port must be a number.";
         },
       },
     ]);
@@ -160,8 +163,7 @@ export async function askDestinationQuestions(envObject: envType) {
         type: "input",
         name: "postgres_user",
         message: "Enter PostgreSQL Username:",
-        validate: (input) =>
-          input.trim() !== "" || "Username cannot be empty.",
+        validate: (input) => input.trim() !== "" || "Username cannot be empty.",
       },
     ]);
     const { postgres_password } = await inquirer.prompt([
@@ -169,8 +171,7 @@ export async function askDestinationQuestions(envObject: envType) {
         type: "password",
         name: "postgres_password",
         message: "Enter PostgreSQL Password:",
-        validate: (input) =>
-          input.trim() !== "" || "Password cannot be empty.",
+        validate: (input) => input.trim() !== "" || "Password cannot be empty.",
       },
     ]);
     const { postgres_db_name } = await inquirer.prompt([
@@ -198,7 +199,7 @@ export async function askDestinationQuestions(envObject: envType) {
       postgres_user,
       postgres_password,
       postgres_db_name,
-      postgres_table_name
+      postgres_table_name,
     });
 
     displayPostgresInstructions(postgres_table_name);
