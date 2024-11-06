@@ -11,111 +11,21 @@ import * as custom_resources from "aws-cdk-lib/custom-resources";
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as dotenv from "dotenv";
 import * as logs from "aws-cdk-lib/aws-logs";
+import { BatchStack } from "./nested_stacks/batch-stack";
+
 
 dotenv.config();
 
-const COMPUTE_ENV_MAX_VCPU = 16;
-const CONTAINER_VCPU = "2";
-const CONTAINER_MEMORY = "4096";
+const lambdaAssetPath = "lambda/dropbox_pinecone_lambda"
+const imageURL = "public.ecr.aws/q1n8b2k4/hcamacho/unstructured-demo:latest";
 
-export class Dropbox_Pinecone_CDK_Stack extends cdk.Stack {
+export class DropboxPineconeCDKStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
-    // Create the VPC
-    const vpc = new ec2.Vpc(this, "MyVpc", {
-      maxAzs: 3,
-      natGateways: 1,
-    });
-
-    // Create Batch Instance Role
-    const batchInstanceRole = new iam.Role(this, "BatchInstanceRole", {
-      assumedBy: new iam.ServicePrincipal("ec2.amazonaws.com"),
-      managedPolicies: [
-        iam.ManagedPolicy.fromAwsManagedPolicyName(
-          "service-role/AmazonEC2ContainerServiceforEC2Role"
-        ),
-      ],
-    });
-
-    // Create an Instance Profile for the Batch Instance Role
-    const batchInstanceProfile = new iam.CfnInstanceProfile(
-      this,
-      "BatchInstanceProfile",
-      {
-        roles: [batchInstanceRole.roleName],
-      }
-    );
-
-    // Create Batch Service Role
-    const batchServiceRole = new iam.Role(this, "BatchServiceRole", {
-      assumedBy: new iam.ServicePrincipal("batch.amazonaws.com"),
-      managedPolicies: [
-        iam.ManagedPolicy.fromAwsManagedPolicyName(
-          "service-role/AWSBatchServiceRole"
-        ),
-      ],
-    });
-
-    // Define the execution role for Fargate Batch jobs
-    const batchExecutionRole = new iam.Role(this, "BatchExecutionRole", {
-      assumedBy: new iam.ServicePrincipal("ecs-tasks.amazonaws.com"),
-      managedPolicies: [
-        iam.ManagedPolicy.fromAwsManagedPolicyName(
-          "service-role/AmazonECSTaskExecutionRolePolicy"
-        ),
-      ],
-    });
-
-    // Create a Batch Compute Environment with Fargate and ARM64 support
-    const computeEnvironment = new batch.CfnComputeEnvironment(
-      this,
-      "MyBatchComputeEnv",
-      {
-        type: "MANAGED",
-        computeResources: {
-          type: "FARGATE",
-          maxvCpus: COMPUTE_ENV_MAX_VCPU,
-          subnets: vpc.privateSubnets.map((subnet) => subnet.subnetId),
-          securityGroupIds: [
-            new ec2.SecurityGroup(this, "BatchSecurityGroup", { vpc })
-              .securityGroupId,
-          ],
-        },
-        serviceRole: batchServiceRole.roleArn,
-      }
-    );
-
-    // Create a Batch Job Queue
-    const jobQueue = new batch.CfnJobQueue(this, "MyBatchJobQueue", {
-      priority: 1,
-      computeEnvironmentOrder: [
-        {
-          order: 1,
-          computeEnvironment: computeEnvironment.ref,
-        },
-      ],
-    });
-
-    // Batch Job Definition with ARM64 architecture
-    const jobDefinition = new batch.CfnJobDefinition(this, "MyBatchJobDef", {
-      type: "container",
-      containerProperties: {
-        image: "public.ecr.aws/q1n8b2k4/hcamacho/unstructured-demo:latest",
-        resourceRequirements: [
-          { type: "VCPU", value: CONTAINER_VCPU },
-          { type: "MEMORY", value: CONTAINER_MEMORY },
-        ],
-        jobRoleArn: new iam.Role(this, "BatchJobRole", {
-          assumedBy: new iam.ServicePrincipal("ecs-tasks.amazonaws.com"),
-        }).roleArn,
-        executionRoleArn: batchExecutionRole.roleArn,
-        runtimePlatform: {
-          cpuArchitecture: "ARM64",
-          operatingSystemFamily: "LINUX",
-        },
-      },
-      platformCapabilities: ["FARGATE"],
+    // Instantiate nested stacks
+    const batchStack = new BatchStack(this, 'BatchStack', {
+      imageURL: imageURL,
     });
 
     // Setting up DynamoDB
@@ -147,12 +57,12 @@ export class Dropbox_Pinecone_CDK_Stack extends cdk.Stack {
     // Lambda function to handle webhook requests
     const webhookLambda = new lambda.Function(this, "WebhookHandlerLambda", {
       runtime: lambda.Runtime.PYTHON_3_9,
-      code: lambda.Code.fromAsset("lambda/dropbox_pinecone_lambda"),
+      code: lambda.Code.fromAsset(lambdaAssetPath),
       handler: "webhook_handler.handler",
       layers: [requestsLayer],
       environment: {
-        JOB_QUEUE: jobQueue.ref,
-        JOB_DEFINITION: jobDefinition.ref,
+        JOB_QUEUE: batchStack.jobQueueRef,
+        JOB_DEFINITION: batchStack.jobDefinitionRef,
         DROPBOX_ACCESS_TOKEN: process.env.DROPBOX_ACCESS_TOKEN!,
         DROPBOX_REFRESH_TOKEN: process.env.DROPBOX_REFRESH_TOKEN!,
         DROPBOX_APP_KEY: process.env.DROPBOX_APP_KEY!,
@@ -170,7 +80,7 @@ export class Dropbox_Pinecone_CDK_Stack extends cdk.Stack {
     webhookLambda.addToRolePolicy(
       new iam.PolicyStatement({
         actions: ["batch:SubmitJob"],
-        resources: [jobQueue.ref, jobDefinition.ref],
+        resources: [batchStack.jobQueueRef, batchStack.jobDefinitionRef],
       })
     );
 
@@ -208,6 +118,7 @@ export class Dropbox_Pinecone_CDK_Stack extends cdk.Stack {
     const api = new apigateway.RestApi(this, "WebhookApi", {
       restApiName: "Webhook Service",
       description: "API Gateway with POST endpoint for Dropbox webhook.",
+      cloudWatchRole: true,
       deployOptions: {
         accessLogDestination: new apigateway.LogGroupLogDestination(logGroup),
         accessLogFormat: apigateway.AccessLogFormat.jsonWithStandardFields(),
