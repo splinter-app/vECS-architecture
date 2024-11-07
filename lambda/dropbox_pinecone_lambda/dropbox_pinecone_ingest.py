@@ -32,6 +32,7 @@ if __name__ == "__main__":
         embedder_config=EmbedderConfig(
             embedding_provider="huggingface",
             embedding_model_name=os.getenv("EMBEDDING_MODEL_NAME"),
+            embedding_api_key=os.getenv("EMBEDDING_PROVIDER_API_KEY"),
         ),
         destination_connection_config=PineconeConnectionConfig(
             access_config=PineconeAccessConfig(
