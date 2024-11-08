@@ -1,7 +1,35 @@
 # lambda/delete_lambda_function.py
 import json
 import os
+import boto3
 from pinecone_utils import delete_from_pinecone
+import time
+
+logs_client = boto3.client('logs')
+log_group_name = os.environ['CENTRAL_LOG_GROUP_NAME']
+log_stream_name = 'deleteLambda-log-stream'
+
+try:
+    logs_client.create_log_stream(
+        logGroupName=log_group_name,
+        logStreamName=log_stream_name
+    )
+except logs_client.exceptions.ResourceAlreadyExistsException:
+    pass
+
+def log_to_cloudwatch(message):
+    timestamp = int(round(time.time() * 1000))
+
+    logs_client.put_log_events(
+        logGroupName=log_group_name,
+        logStreamName=log_stream_name,
+        logEvents=[
+            {
+                'timestamp': timestamp,
+                'message': message
+            }
+        ]
+    )
 
 def lambda_handler(event, context):
     # Retrieve the API key and index name from environment variables
@@ -13,12 +41,16 @@ def lambda_handler(event, context):
         s3_key = record['s3']['object']['key']
 
         filename = os.path.basename(s3_key)
-        print(f"Deleting File: {filename} from Bucket: {s3_bucket}")
+        message = f"Deleting File: {filename} from Bucket: {s3_bucket}"
+        print(message)
+        log_to_cloudwatch(message)
 
         try:
             delete_from_pinecone(filename, api_key, index_name)
         except Exception as e:
-            print(f"Error deleting from Pinecone: {e}")
+            message = f"Error deleting from Pinecone: {e}"
+            print(message)
+            log_to_cloudwatch(message)
 
     return {
         'statusCode': 200,
