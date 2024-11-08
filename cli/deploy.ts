@@ -11,7 +11,6 @@ import { askSourceQuestions } from "./configQuestions/sourceQuestions";
 import { askDestinationQuestions } from "./configQuestions/destinationQuestions";
 import { askEmbeddingQuestions } from "./configQuestions/embeddingQuestions";
 import { askChunkQuestions } from "./configQuestions/chunkQuestions";
-import { askAWSQuestions } from "./configQuestions/awsQuestions";
 import { envType } from "./configQuestions/envType";
 
 // Read and display the logo
@@ -37,9 +36,7 @@ program
   .description("Deploy the CDK stack with specified options.")
   .action(async () => {
     displayWelcome();
-    const awsKeys = await askAWSQuestions();
-    let envObject: envType = { ...awsKeys };
-
+    let envObject = {} as envType;
     const source = await askSourceQuestions(envObject);
     const destination = await askDestinationQuestions(envObject);
     const embedding = await askEmbeddingQuestions(envObject);

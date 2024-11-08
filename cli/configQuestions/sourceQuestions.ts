@@ -52,6 +52,27 @@ export async function askSourceQuestions(envObject: envType) {
   ]);
 
   if (source.sourceConnector === "S3") {
+    const { myAWSAccessKeyId, myAWSSecretAccessKey } = await inquirer.prompt([
+      {
+        type: "input",
+        name: "myAWSAccessKeyId",
+        message: "Enter AWS Access Key ID:",
+        validate: (input) =>
+          input.trim() !== "" || "Access key cannot be empty.",
+      },
+      {
+        type: "input",
+        name: "myAWSSecretAccessKey",
+        message: "Enter AWS Secret Access Key:",
+        validate: (input) =>
+          input.trim() !== "" || "Secret access key cannot be empty.",
+      },
+    ]);
+
+    Object.assign(envObject, {
+      my_aws_access_key_id: myAWSAccessKeyId,
+      my_aws_secret_access_key: myAWSSecretAccessKey,
+    });
     const { s3BucketName } = await inquirer.prompt([
       {
         type: "input",
